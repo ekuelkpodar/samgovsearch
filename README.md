@@ -44,6 +44,7 @@ AI-powered government contract search, alerts, pipeline tracking, and proposal d
 - `/wall-of-love` Testimonials grid
 - `/tools` Free NAICS finder + mini search
 - `/login`, `/signup` Auth forms
+- `/dashboard` Authenticated overview with KPIs and pipeline mix
 - `/search` Authenticated search with AI rewrite toggle, filters, pagination
 - `/opportunity/[id]` Detail view with AI summary, attachments, pipeline notes
 - `/saved` Saved opportunities list with inline status updates
@@ -60,6 +61,7 @@ AI-powered government contract search, alerts, pipeline tracking, and proposal d
 - AI helpers: `POST /api/ai/summarize-opportunity`, `POST /api/ai/rewrite-query`
 - Auth hardening: `POST /api/auth/request-reset`, `POST /api/auth/reset`, `POST /api/auth/request-verification`, `POST /api/auth/verify`
 - Admin/staff: `POST /api/opportunities/sync-sam` (admin only), cron endpoint `POST /api/cron/alerts` guarded by `CRON_SECRET`
+- Insights: `GET /api/dashboard/overview`, `GET /api/opportunities/facets`
 
 ## Data model (Prisma)
 - `User` with role, passwordHash

@@ -1,5 +1,23 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+const searchSchema = z.object({
+  q: z.string().optional(),
+  agency: z.union([z.string(), z.array(z.string())]).optional(),
+  department: z.union([z.string(), z.array(z.string())]).optional(),
+  naics: z.union([z.string(), z.array(z.string())]).optional(),
+  setAside: z.string().optional(),
+  noticeType: z.union([z.string(), z.array(z.string())]).optional(),
+  valueMin: z.string().optional(),
+  valueMax: z.string().optional(),
+  deadlineFrom: z.string().optional(),
+  deadlineTo: z.string().optional(),
+  page: z.string().optional(),
+  pageSize: z.string().optional(),
+  activeOnly: z.string().optional(),
+  location: z.string().optional(),
+});
 
 const toArray = (value: undefined | string | string[]) => {
   if (!value) return [] as string[];
@@ -13,6 +31,9 @@ const toArray = (value: undefined | string | string[]) => {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+
+  const parsed = searchSchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid query parameters" });
 
   const {
     q = "",
@@ -29,15 +50,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     pageSize = "10",
     activeOnly,
     location,
-  } = req.query;
+  } = parsed.data;
 
-  const agencies = toArray(agency as string | string[] | undefined);
-  const departments = toArray(department as string | string[] | undefined);
-  const naicsCodes = toArray(naics as string | string[] | undefined);
-  const noticeTypes = toArray(noticeType as string | string[] | undefined);
+  const agencies = toArray(agency);
+  const departments = toArray(department);
+  const naicsCodes = toArray(naics);
+  const noticeTypes = toArray(noticeType);
 
-  const pageNumber = parseInt(page as string, 10) || 1;
-  const take = Math.min(parseInt(pageSize as string, 10) || 10, 50);
+  const pageNumber = Math.max(1, parseInt(page || "1", 10) || 1);
+  const take = Math.min(Math.max(parseInt(pageSize || "10", 10) || 10, 1), 50);
   const skip = (pageNumber - 1) * take;
 
   const where: any = {};
@@ -78,7 +99,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       prisma.opportunity.count({ where }),
     ]);
 
-    return res.status(200).json({ data, total, page: pageNumber, pageSize: take });
+    return res
+      .status(200)
+      .json({ data, total, page: pageNumber, pageSize: take, totalPages: Math.ceil(total / take) });
   } catch (error) {
     console.error("Search failed", error);
     return res.status(500).json({ error: "Search failed" });
