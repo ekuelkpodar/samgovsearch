@@ -2,8 +2,9 @@ import Layout from "@/components/Layout";
 import StatCard from "@/components/StatCard";
 import { prisma } from "@/lib/prisma";
 import { getUserFromRequest } from "@/lib/auth";
-import { Opportunity, SavedOpportunity } from "@/types";
+import { Opportunity, SavedOpportunity, SavedSearch } from "@/types";
 import { GetServerSideProps } from "next";
+import useSWR from "swr";
 
 interface Props {
   stats: {
@@ -16,10 +17,15 @@ interface Props {
   };
   recent: Opportunity[];
   pipeline: SavedOpportunity[];
+  savedSearches: SavedSearch[];
 }
 
-export default function DashboardPage({ stats, recent, pipeline }: Props) {
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+export default function DashboardPage({ stats, recent, pipeline, savedSearches }: Props) {
+  const { data: activity } = useSWR("/api/dashboard/activity", fetcher, { refreshInterval: 60_000 });
   const totalPipeline = stats.pipeline.reduce((acc, item) => acc + item.count, 0) || 1;
+
   return (
     <Layout>
       <section className="grid gap-4 md:grid-cols-5">
@@ -69,17 +75,71 @@ export default function DashboardPage({ stats, recent, pipeline }: Props) {
         </div>
       </section>
 
+      <section className="mt-4 grid gap-4 md:grid-cols-[1.2fr_1fr]">
+        <div className="card-border bg-[#0f172a]/80 p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Pipeline activity (7d)</h2>
+            <div className="text-xs text-muted">{activity?.since ? `since ${new Date(activity.since).toLocaleDateString()}` : "Refreshing..."}</div>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-3 text-sm text-white/80">
+            {pipeline.map((item) => (
+              <div key={item.id} className="rounded-lg bg-white/5 p-3">
+                <div className="text-base font-semibold text-white">{item.opportunity?.title}</div>
+                <div className="text-muted">{item.status} • {item.priority}</div>
+                <div className="text-xs text-muted">Updated {new Date(item.updatedAt || "").toLocaleDateString()}</div>
+              </div>
+            ))}
+            {!pipeline.length && <div className="text-muted">No saved opportunities.</div>}
+          </div>
+        </div>
+        <div className="card-border bg-glass p-5">
+          <h2 className="text-lg font-semibold">Top signals</h2>
+          <div className="mt-3 space-y-3 text-sm text-white/80">
+            <div className="rounded-lg bg-white/5 p-3">
+              <div className="text-xs text-muted">New opportunities (7d)</div>
+              <div className="text-2xl font-bold text-white">{activity?.newOpportunities ?? "—"}</div>
+            </div>
+            <div className="rounded-lg bg-white/5 p-3">
+              <div className="text-xs text-muted">Your updates (7d)</div>
+              <div className="text-2xl font-bold text-white">{activity?.newSaved ?? "—"}</div>
+            </div>
+            <div className="rounded-lg bg-white/5 p-3">
+              <div className="text-xs text-muted">Top agencies</div>
+              <div className="mt-2 space-y-1 text-muted">
+                {activity?.topAgencies?.map((a: any) => (
+                  <div key={a.name} className="flex justify-between">
+                    <span>{a.name}</span>
+                    <span>{a.count}</span>
+                  </div>
+                )) || "Loading..."}
+              </div>
+            </div>
+            <div className="rounded-lg bg-white/5 p-3">
+              <div className="text-xs text-muted">Top set-asides</div>
+              <div className="mt-2 space-y-1 text-muted">
+                {activity?.topSetAsides?.map((s: any) => (
+                  <div key={s.name} className="flex justify-between">
+                    <span>{s.name}</span>
+                    <span>{s.count}</span>
+                  </div>
+                )) || "Loading..."}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="mt-4 card-border bg-[#0f172a]/80 p-5">
-        <h2 className="text-lg font-semibold">Pipeline activity</h2>
+        <h2 className="text-lg font-semibold">Saved searches</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-3 text-sm text-white/80">
-          {pipeline.map((item) => (
-            <div key={item.id} className="rounded-lg bg-white/5 p-3">
-              <div className="text-base font-semibold text-white">{item.opportunity?.title}</div>
-              <div className="text-muted">{item.status} • {item.priority}</div>
-              <div className="text-xs text-muted">Updated {new Date(item.updatedAt || "").toLocaleDateString()}</div>
+          {savedSearches.map((search) => (
+            <div key={search.id} className="rounded-lg bg-white/5 p-3">
+              <div className="text-base font-semibold text-white">{search.name}</div>
+              <div className="text-muted line-clamp-2">{search.query}</div>
+              <div className="text-xs text-muted">Frequency: {search.frequency}</div>
             </div>
           ))}
-          {!pipeline.length && <div className="text-muted">No saved opportunities.</div>}
+          {!savedSearches.length && <div className="text-muted">No saved searches yet.</div>}
         </div>
       </section>
     </Layout>
@@ -90,7 +150,7 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
   const user = await getUserFromRequest(req as any);
   if (!user) return { redirect: { destination: "/login", permanent: false } };
 
-  const [totals, pipeline, recent] = await Promise.all([
+  const [totals, pipeline, recent, savedSearches] = await Promise.all([
     prisma.savedOpportunity.groupBy({ by: ["status"], _count: true, where: { userId: user.id } }),
     prisma.savedOpportunity.findMany({
       where: { userId: user.id },
@@ -99,9 +159,10 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
       take: 9,
     }),
     prisma.opportunity.findMany({ orderBy: { postedDate: "desc" }, take: 6 }),
+    prisma.savedSearch.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" }, take: 6 }),
   ]);
 
-  const [totalOpps, openOpps, saved, proposals, savedSearches] = await Promise.all([
+  const [totalOpps, openOpps, saved, proposals, savedSearchesCount] = await Promise.all([
     prisma.opportunity.count(),
     prisma.opportunity.count({ where: { status: "Open" } }),
     prisma.savedOpportunity.count({ where: { userId: user.id } }),
@@ -116,11 +177,12 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
         openOpps,
         saved,
         proposals,
-        savedSearches,
+        savedSearches: savedSearchesCount,
         pipeline: totals.map((t) => ({ status: t.status, count: t._count })),
       },
       recent: JSON.parse(JSON.stringify(recent)),
       pipeline: JSON.parse(JSON.stringify(pipeline)),
+      savedSearches: JSON.parse(JSON.stringify(savedSearches)),
     },
   };
 };

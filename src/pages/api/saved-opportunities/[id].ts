@@ -12,11 +12,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "PATCH") {
     const { status, notes, priority } = req.body;
     try {
-      const saved = await prisma.savedOpportunity.update({
-        where: { id },
+      const saved = await prisma.savedOpportunity.updateMany({
+        where: { id, userId: user.id },
         data: { status, notes, priority },
       });
-      return res.status(200).json({ saved });
+      if (saved.count === 0) return res.status(404).json({ error: "Not found" });
+      const fresh = await prisma.savedOpportunity.findFirst({ where: { id, userId: user.id }, include: { opportunity: true } });
+      return res.status(200).json({ saved: fresh });
     } catch (error) {
       console.error("Failed to update saved opportunity", error);
       return res.status(500).json({ error: "Update failed" });

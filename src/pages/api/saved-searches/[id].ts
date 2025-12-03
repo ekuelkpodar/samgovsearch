@@ -12,8 +12,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "PATCH") {
     const { name, query, filters, frequency, isActive } = req.body;
     try {
+      const owned = await prisma.savedSearch.findFirst({ where: { id, userId: user.id } });
+      if (!owned) return res.status(404).json({ error: "Not found" });
+
       const savedSearch = await prisma.savedSearch.update({
-        where: { id },
+        where: { id: owned.id },
         data: { name, query, filters, frequency },
       });
 
