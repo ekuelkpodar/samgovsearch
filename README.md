@@ -62,6 +62,7 @@ AI-powered government contract search, alerts, pipeline tracking, and proposal d
 - Auth hardening: `POST /api/auth/request-reset`, `POST /api/auth/reset`, `POST /api/auth/request-verification`, `POST /api/auth/verify`
 - Admin/staff: `POST /api/opportunities/sync-sam` (admin only), cron endpoint `POST /api/cron/alerts` guarded by `CRON_SECRET`
 - Insights: `GET /api/dashboard/overview`, `GET /api/opportunities/facets`
+- Trends/Activity: `GET /api/dashboard/activity`, `GET /api/dashboard/trends`
 
 ## Data model (Prisma)
 - `User` with role, passwordHash

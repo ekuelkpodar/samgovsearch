@@ -24,6 +24,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DashboardPage({ stats, recent, pipeline, savedSearches }: Props) {
   const { data: activity } = useSWR("/api/dashboard/activity", fetcher, { refreshInterval: 60_000 });
+  const { data: trends } = useSWR("/api/dashboard/trends", fetcher, { refreshInterval: 120_000 });
   const totalPipeline = stats.pipeline.reduce((acc, item) => acc + item.count, 0) || 1;
 
   return (
@@ -72,6 +73,48 @@ export default function DashboardPage({ stats, recent, pipeline, savedSearches }
             })}
             {!stats.pipeline.length && <div className="text-muted">No pipeline yet.</div>}
           </div>
+        </div>
+      </section>
+
+      <section className="mt-4 card-border bg-[#0f172a]/80 p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">30-day velocity</h2>
+          <div className="text-xs text-muted">Opportunities posted vs. your pipeline updates</div>
+        </div>
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          {[
+            { label: "Opportunities posted", series: trends?.opportunities },
+            { label: "Your pipeline updates", series: trends?.saved },
+          ].map((item) => (
+            <div key={item.label} className="rounded-xl bg-white/5 p-4 text-sm text-white/80">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-white">{item.label}</span>
+                <span className="text-xs text-muted">
+                  {item.series ? item.series.reduce((s: number, p: any) => s + p.count, 0) : "—"} events
+                </span>
+              </div>
+              <div className="mt-3 h-24 w-full rounded-lg bg-white/5 p-2">
+                <svg viewBox="0 0 120 40" className="h-full w-full">
+                  {item.series &&
+                    item.series.map((point: any, idx: number) => {
+                      const max = Math.max(...item.series.map((p: any) => p.count), 1);
+                      const x = (idx / Math.max(item.series.length - 1, 1)) * 120;
+                      const y = 40 - (point.count / max) * 36 - 2;
+                      return <circle key={point.date} cx={x} cy={y} r={1.6} fill="#22d3ee" opacity={0.8} />;
+                    })}
+                  {item.series &&
+                    item.series.slice(1).map((point: any, idx: number) => {
+                      const max = Math.max(...item.series.map((p: any) => p.count), 1);
+                      const x1 = (idx / Math.max(item.series.length - 1, 1)) * 120;
+                      const y1 = 40 - (item.series[idx].count / max) * 36 - 2;
+                      const x2 = ((idx + 1) / Math.max(item.series.length - 1, 1)) * 120;
+                      const y2 = 40 - (point.count / max) * 36 - 2;
+                      return <line key={idx} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#22d3ee" strokeWidth="0.6" />;
+                    })}
+                </svg>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
