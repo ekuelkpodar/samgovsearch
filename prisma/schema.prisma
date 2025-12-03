@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  user
+  admin
+}
+
+enum ProposalStatus {
+  Draft
+  Finalized
+  Archived
+}
+
+enum SavedStatus {
+  Evaluating
+  Pursuing
+  Submitted
+  Won
+  Lost
+}
+
+enum PriorityLevel {
+  low
+  medium
+  high
+}
+
+enum DeliveryChannel {
+  email
+}
+
+model User {
+  id           String           @id @default(uuid())
+  email        String           @unique
+  passwordHash String
+  name         String
+  role         Role             @default(user)
+  emailVerified Boolean         @default(false)
+  savedOpportunities SavedOpportunity[]
+  savedSearches     SavedSearch[]
+  alerts            AlertSubscription[]
+  proposals         ProposalDraft[]
+  verificationTokens EmailVerificationToken[]
+  resetTokens        PasswordResetToken[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model Opportunity {
+  id                 String             @id @default(uuid())
+  samId              String?            @unique
+  title              String
+  agency             String
+  department         String?
+  solicitationNumber String
+  noticeType         String
+  naicsCodes         String[]
+  pscCodes           String[]
+  setAside           String
+  placeOfPerformance String?
+  estimatedValueMin  Float?
+  estimatedValueMax  Float?
+  responseDeadline   DateTime
+  postedDate         DateTime
+  url                String
+  description        String
+  rawText            String
+  status             String
+  attachments        Attachment[]
+  savedEntries       SavedOpportunity[]
+  proposals          ProposalDraft[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+}
+
+model SavedOpportunity {
+  id            String       @id @default(uuid())
+  userId        String
+  opportunityId String
+  status        SavedStatus  @default(Evaluating)
+  notes         String?
+  priority      PriorityLevel @default(medium)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([userId, opportunityId])
+}
+
+model SavedSearch {
+  id          String    @id @default(uuid())
+  userId      String
+  name        String
+  query       String
+  filters     Json
+  frequency   String
+  lastRunAt   DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alerts      AlertSubscription[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AlertSubscription {
+  id            String           @id @default(uuid())
+  userId        String
+  savedSearchId String
+  deliveryChannel DeliveryChannel @default(email)
+  isActive      Boolean          @default(true)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedSearch   SavedSearch      @relation(fields: [savedSearchId], references: [id], onDelete: Cascade)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model ProposalDraft {
+  id            String         @id @default(uuid())
+  userId        String
+  opportunityId String
+  title         String
+  sections      Json
+  status        ProposalStatus @default(Draft)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity    @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Attachment {
+  id            String      @id @default(uuid())
+  opportunityId String
+  fileName      String
+  fileType      String
+  fileSize      Int
+  url           String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
